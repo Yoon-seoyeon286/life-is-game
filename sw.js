@@ -1,15 +1,7 @@
-const CACHE_NAME = 'life-is-game-v1';
+const CACHE_NAME = 'life-is-game-v3';
 const BASE = '/life-is-game';
 
-const PRECACHE = [
-  BASE + '/',
-  BASE + '/index.html',
-];
-
 self.addEventListener('install', event => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => cache.addAll(PRECACHE))
-  );
   self.skipWaiting();
 });
 
@@ -23,9 +15,16 @@ self.addEventListener('activate', event => {
 });
 
 self.addEventListener('fetch', event => {
+  if (event.request.method !== 'GET') return;
   event.respondWith(
-    caches.match(event.request).then(cached => {
-      return cached || fetch(event.request).catch(() => caches.match(BASE + '/index.html'));
-    })
+    fetch(event.request)
+      .then(res => {
+        const clone = res.clone();
+        caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+        return res;
+      })
+      .catch(() => caches.match(event.request).then(cached =>
+        cached || caches.match(BASE + '/index.html')
+      ))
   );
 });
