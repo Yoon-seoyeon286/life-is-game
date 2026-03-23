@@ -1,6 +1,9 @@
 import { useState } from 'react';
-import type { Quest, StatKey, QuestDifficulty } from '../types';
-import { STAT_LABELS, STAT_EMOJIS, DIFFICULTY_LABELS, DIFFICULTY_COLORS } from '../gameLogic';
+import type { Quest, StatKey, QuestDifficulty, QuestCategory, RecurringType } from '../types';
+import {
+  STAT_LABELS, STAT_EMOJIS, DIFFICULTY_LABELS, DIFFICULTY_COLORS,
+  CATEGORY_LABELS, CATEGORY_EMOJIS
+} from '../gameLogic';
 
 interface Props {
   quests: Quest[];
@@ -11,25 +14,32 @@ interface Props {
 
 const STAT_KEYS: StatKey[] = ['intelligence', 'strength', 'creativity', 'discipline', 'social'];
 const DIFFICULTIES: QuestDifficulty[] = ['easy', 'normal', 'hard', 'epic'];
+const CATEGORIES: QuestCategory[] = ['study', 'health', 'project', 'social', 'habit', 'other'];
 const XP_MAP: Record<QuestDifficulty, number> = { easy: 30, normal: 60, hard: 120, epic: 250 };
 
 export default function QuestBoard({ quests, onComplete, onFail, onAdd }: Props) {
   const [showForm, setShowForm] = useState(false);
   const [filter, setFilter] = useState<'active' | 'completed' | 'failed'>('active');
+  const [categoryFilter, setCategoryFilter] = useState<QuestCategory | 'all'>('all');
   const [form, setForm] = useState({
     title: '',
     description: '',
     difficulty: 'normal' as QuestDifficulty,
     stat: 'discipline' as StatKey,
+    category: 'habit' as QuestCategory,
+    recurring: null as RecurringType,
   });
 
-  const filtered = quests.filter(q => q.status === filter);
+  const filtered = quests.filter(q =>
+    q.status === filter &&
+    (categoryFilter === 'all' || q.category === categoryFilter)
+  );
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!form.title.trim()) return;
     onAdd(form);
-    setForm({ title: '', description: '', difficulty: 'normal', stat: 'discipline' });
+    setForm({ title: '', description: '', difficulty: 'normal', stat: 'discipline', category: 'habit', recurring: null });
     setShowForm(false);
   }
 
@@ -62,6 +72,18 @@ export default function QuestBoard({ quests, onComplete, onFail, onAdd }: Props)
           />
           <div className="grid grid-cols-2 gap-2">
             <div>
+              <div className="text-xs text-gray-400 mb-1">카테고리</div>
+              <select
+                className="w-full bg-gray-800 text-white text-sm rounded-lg px-2 py-2 border border-gray-700 focus:outline-none"
+                value={form.category}
+                onChange={e => setForm(v => ({ ...v, category: e.target.value as QuestCategory }))}
+              >
+                {CATEGORIES.map(c => (
+                  <option key={c} value={c}>{CATEGORY_EMOJIS[c]} {CATEGORY_LABELS[c]}</option>
+                ))}
+              </select>
+            </div>
+            <div>
               <div className="text-xs text-gray-400 mb-1">관련 스탯</div>
               <select
                 className="w-full bg-gray-800 text-white text-sm rounded-lg px-2 py-2 border border-gray-700 focus:outline-none"
@@ -85,6 +107,18 @@ export default function QuestBoard({ quests, onComplete, onFail, onAdd }: Props)
                 ))}
               </select>
             </div>
+            <div>
+              <div className="text-xs text-gray-400 mb-1">반복</div>
+              <select
+                className="w-full bg-gray-800 text-white text-sm rounded-lg px-2 py-2 border border-gray-700 focus:outline-none"
+                value={form.recurring ?? ''}
+                onChange={e => setForm(v => ({ ...v, recurring: (e.target.value || null) as RecurringType }))}
+              >
+                <option value="">없음</option>
+                <option value="daily">매일 반복</option>
+                <option value="weekly">매주 반복</option>
+              </select>
+            </div>
           </div>
           <button
             type="submit"
@@ -95,21 +129,35 @@ export default function QuestBoard({ quests, onComplete, onFail, onAdd }: Props)
         </form>
       )}
 
-      <div className="flex gap-1 mb-3">
+      <div className="flex gap-1 mb-2 flex-wrap">
         {(['active', 'completed', 'failed'] as const).map(f => (
           <button
             key={f}
             onClick={() => setFilter(f)}
             className={`text-xs px-3 py-1 rounded-full transition-colors ${
-              filter === f
-                ? 'bg-purple-700 text-white'
-                : 'text-gray-400 hover:text-gray-200'
+              filter === f ? 'bg-purple-700 text-white' : 'text-gray-400 hover:text-gray-200'
             }`}
           >
             {f === 'active' ? '진행 중' : f === 'completed' ? '완료' : '실패'}
-            <span className="ml-1 text-gray-500">
-              ({quests.filter(q => q.status === f).length})
-            </span>
+            <span className="ml-1 text-gray-500">({quests.filter(q => q.status === f).length})</span>
+          </button>
+        ))}
+      </div>
+
+      <div className="flex gap-1 mb-3 flex-wrap">
+        <button
+          onClick={() => setCategoryFilter('all')}
+          className={`text-xs px-2 py-0.5 rounded-full transition-colors ${categoryFilter === 'all' ? 'bg-gray-600 text-white' : 'text-gray-500 hover:text-gray-300'}`}
+        >
+          전체
+        </button>
+        {CATEGORIES.map(c => (
+          <button
+            key={c}
+            onClick={() => setCategoryFilter(c)}
+            className={`text-xs px-2 py-0.5 rounded-full transition-colors ${categoryFilter === c ? 'bg-gray-600 text-white' : 'text-gray-500 hover:text-gray-300'}`}
+          >
+            {CATEGORY_EMOJIS[c]} {CATEGORY_LABELS[c]}
           </button>
         ))}
       </div>
@@ -121,12 +169,7 @@ export default function QuestBoard({ quests, onComplete, onFail, onAdd }: Props)
           </div>
         )}
         {filtered.map(quest => (
-          <QuestItem
-            key={quest.id}
-            quest={quest}
-            onComplete={onComplete}
-            onFail={onFail}
-          />
+          <QuestItem key={quest.id} quest={quest} onComplete={onComplete} onFail={onFail} />
         ))}
       </div>
     </div>
@@ -138,8 +181,14 @@ function QuestItem({ quest, onComplete, onFail }: { quest: Quest; onComplete: (i
     <div className="p-3 rounded-xl bg-gray-900/50 border border-gray-800/50 fade-in">
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-xs">{CATEGORY_EMOJIS[quest.category]}</span>
             <span className="text-sm font-medium text-white truncate">{quest.title}</span>
+            {quest.recurring && (
+              <span className="text-xs bg-blue-900/50 text-blue-400 border border-blue-800/40 px-1.5 py-0.5 rounded-full">
+                {quest.recurring === 'daily' ? '매일' : '매주'}
+              </span>
+            )}
             <span
               className="text-xs px-1.5 py-0.5 rounded font-medium"
               style={{ color: DIFFICULTY_COLORS[quest.difficulty], backgroundColor: `${DIFFICULTY_COLORS[quest.difficulty]}22` }}
@@ -161,26 +210,19 @@ function QuestItem({ quest, onComplete, onFail }: { quest: Quest; onComplete: (i
             <button
               onClick={() => onComplete(quest.id)}
               className="text-xs bg-green-800/60 hover:bg-green-700 text-green-300 px-2 py-1 rounded-lg transition-colors"
-              title="완료"
             >
               완료
             </button>
             <button
               onClick={() => onFail(quest.id)}
               className="text-xs bg-red-900/60 hover:bg-red-800 text-red-400 px-2 py-1 rounded-lg transition-colors"
-              title="실패"
             >
               실패
             </button>
           </div>
         )}
-
-        {quest.status === 'completed' && (
-          <span className="text-green-500 text-lg shrink-0">✓</span>
-        )}
-        {quest.status === 'failed' && (
-          <span className="text-red-500 text-lg shrink-0">✗</span>
-        )}
+        {quest.status === 'completed' && <span className="text-green-500 text-lg shrink-0">✓</span>}
+        {quest.status === 'failed' && <span className="text-red-500 text-lg shrink-0">✗</span>}
       </div>
     </div>
   );

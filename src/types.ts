@@ -10,6 +10,8 @@ export interface Stat {
 
 export type QuestStatus = 'active' | 'completed' | 'failed';
 export type QuestDifficulty = 'easy' | 'normal' | 'hard' | 'epic';
+export type QuestCategory = 'study' | 'health' | 'project' | 'social' | 'habit' | 'other';
+export type RecurringType = 'daily' | 'weekly' | null;
 
 export interface Quest {
   id: string;
@@ -17,14 +19,17 @@ export interface Quest {
   description: string;
   difficulty: QuestDifficulty;
   stat: StatKey;
+  category: QuestCategory;
   xpReward: number;
   statReward: number;
   status: QuestStatus;
   createdAt: number;
   completedAt?: number;
+  recurring: RecurringType;
+  lastResetAt?: number;
 }
 
-export type LogType = 'xp' | 'levelup' | 'quest' | 'debuff' | 'stat';
+export type LogType = 'xp' | 'levelup' | 'quest' | 'debuff' | 'stat' | 'achievement' | 'skill' | 'streak';
 
 export interface ActivityLog {
   id: string;
@@ -44,8 +49,34 @@ export interface Debuff {
   resolved: boolean;
 }
 
+export type CharacterClass = 'warrior' | 'mage' | 'rogue' | 'ranger';
+
+export interface Achievement {
+  id: string;
+  title: string;
+  description: string;
+  icon: string;
+  unlockedAt: number | null;
+}
+
+export interface SkillNode {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  stat: StatKey;
+  requiredStatValue: number;
+  unlockedAt: number | null;
+}
+
+export interface XpHistoryEntry {
+  date: string;
+  xp: number;
+}
+
 export interface CharacterState {
   name: string;
+  characterClass: CharacterClass;
   level: number;
   xp: number;
   xpToNextLevel: number;
@@ -56,4 +87,9 @@ export interface CharacterState {
   debuffs: Debuff[];
   totalXpEarned: number;
   questsCompleted: number;
+  streak: number;
+  lastActiveDate: string | null;
+  achievements: Achievement[];
+  skills: SkillNode[];
+  xpHistory: XpHistoryEntry[];
 }

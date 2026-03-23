@@ -1,4 +1,7 @@
-import type { CharacterState, Quest, Debuff, ActivityLog, QuestDifficulty } from './types';
+import type {
+  CharacterState, Quest, Debuff, ActivityLog,
+  QuestDifficulty, CharacterClass, Achievement, SkillNode, StatKey, XpHistoryEntry
+} from './types';
 
 const XP_REWARDS: Record<QuestDifficulty, number> = {
   easy: 30,
@@ -12,6 +15,48 @@ const STAT_REWARDS: Record<QuestDifficulty, number> = {
   normal: 2,
   hard: 4,
   epic: 8,
+};
+
+export const CLASS_DEFS: Record<CharacterClass, {
+  label: string;
+  icon: string;
+  description: string;
+  bonusStat: StatKey;
+  color: string;
+  statMultipliers: Record<StatKey, number>;
+}> = {
+  warrior: {
+    label: '전사',
+    icon: '⚔️',
+    description: '체력과 자제력이 강하다. 운동과 루틴에 특화.',
+    bonusStat: 'strength',
+    color: '#ef4444',
+    statMultipliers: { strength: 1.5, discipline: 1.3, intelligence: 0.8, creativity: 0.9, social: 1.0 },
+  },
+  mage: {
+    label: '마법사',
+    icon: '🧙',
+    description: '지능과 창의력이 뛰어나다. 공부와 창작에 특화.',
+    bonusStat: 'intelligence',
+    color: '#6366f1',
+    statMultipliers: { intelligence: 1.5, creativity: 1.3, strength: 0.8, discipline: 1.0, social: 0.9 },
+  },
+  rogue: {
+    label: '도적',
+    icon: '🗡️',
+    description: '창의력과 사교성이 높다. 프로젝트와 네트워킹에 특화.',
+    bonusStat: 'creativity',
+    color: '#f59e0b',
+    statMultipliers: { creativity: 1.5, social: 1.3, discipline: 0.8, strength: 0.9, intelligence: 1.0 },
+  },
+  ranger: {
+    label: '레인저',
+    icon: '🏹',
+    description: '균형잡힌 올라운더. 모든 스탯이 고르게 성장.',
+    bonusStat: 'discipline',
+    color: '#10b981',
+    statMultipliers: { intelligence: 1.1, strength: 1.1, creativity: 1.1, discipline: 1.1, social: 1.1 },
+  },
 };
 
 export const TITLES: Array<{ level: number; title: string }> = [
@@ -38,9 +83,44 @@ export function calcXpToNextLevel(level: number): number {
   return Math.floor(100 * Math.pow(1.15, level - 1));
 }
 
-export function createInitialState(name: string): CharacterState {
+function todayString(): string {
+  return new Date().toISOString().split('T')[0];
+}
+
+const ALL_ACHIEVEMENTS: Omit<Achievement, 'unlockedAt'>[] = [
+  { id: 'first_quest', title: '첫 발걸음', description: '첫 번째 퀘스트를 완료하라', icon: '👣' },
+  { id: 'quest_10', title: '꾸준한 모험가', description: '퀘스트 10개 완료', icon: '📜' },
+  { id: 'quest_50', title: '철의 의지', description: '퀘스트 50개 완료', icon: '🏆' },
+  { id: 'quest_100', title: '전설의 영웅', description: '퀘스트 100개 완료', icon: '👑' },
+  { id: 'level_5', title: '수련 시작', description: 'Lv.5 달성', icon: '⭐' },
+  { id: 'level_10', title: '진정한 전사', description: 'Lv.10 달성', icon: '🌟' },
+  { id: 'level_20', title: '고수의 경지', description: 'Lv.20 달성', icon: '💫' },
+  { id: 'streak_3', title: '집중력 발화', description: '3일 연속 달성', icon: '🔥' },
+  { id: 'streak_7', title: '일주일의 전사', description: '7일 연속 달성', icon: '🔥🔥' },
+  { id: 'streak_30', title: '한 달의 지배자', description: '30일 연속 달성', icon: '🔥🔥🔥' },
+  { id: 'stat_20', title: '특기 개발', description: '스탯 하나를 20 이상으로', icon: '📈' },
+  { id: 'stat_50', title: '극한 수련', description: '스탯 하나를 50 이상으로', icon: '💎' },
+  { id: 'epic_quest', title: '전설의 도전', description: '전설 난이도 퀘스트 완료', icon: '⚡' },
+  { id: 'no_debuff', title: '완벽한 하루', description: '디버프 없이 퀘스트 3개 완료', icon: '✨' },
+];
+
+const ALL_SKILLS: Omit<SkillNode, 'unlockedAt'>[] = [
+  { id: 'focus', name: '집중력', description: '지능 10 달성 - 학습 속도 +10%', icon: '🧠', stat: 'intelligence', requiredStatValue: 10 },
+  { id: 'deep_study', name: '심층 탐구', description: '지능 25 달성 - 어려운 퀘스트 XP +20%', icon: '📚', stat: 'intelligence', requiredStatValue: 25 },
+  { id: 'iron_body', name: '강철 육체', description: '체력 10 달성 - 체력 스탯 성장 +15%', icon: '💪', stat: 'strength', requiredStatValue: 10 },
+  { id: 'marathon', name: '마라토너', description: '체력 25 달성 - 연속 퀘스트 보너스 XP', icon: '🏃', stat: 'strength', requiredStatValue: 25 },
+  { id: 'inspiration', name: '영감의 불꽃', description: '창의력 10 달성 - 창작 퀘스트 XP +15%', icon: '✨', stat: 'creativity', requiredStatValue: 10 },
+  { id: 'breakthrough', name: '한계 돌파', description: '창의력 25 달성 - 새 퀘스트 보너스 XP +10%', icon: '💡', stat: 'creativity', requiredStatValue: 25 },
+  { id: 'iron_will', name: '철의 의지', description: '자제력 10 달성 - 디버프 내성', icon: '⚔️', stat: 'discipline', requiredStatValue: 10 },
+  { id: 'ascetic', name: '금욕주의', description: '자제력 25 달성 - 스트릭 XP 보너스 2배', icon: '🏔️', stat: 'discipline', requiredStatValue: 25 },
+  { id: 'charisma', name: '카리스마', description: '사교성 10 달성 - 소셜 퀘스트 XP +15%', icon: '🤝', stat: 'social', requiredStatValue: 10 },
+  { id: 'leader', name: '리더십', description: '사교성 25 달성 - 퀘스트 실패 패널티 감소', icon: '👑', stat: 'social', requiredStatValue: 25 },
+];
+
+export function createInitialState(name: string, characterClass: CharacterClass): CharacterState {
   return {
     name,
+    characterClass,
     level: 1,
     xp: 0,
     xpToNextLevel: calcXpToNextLevel(1),
@@ -57,6 +137,11 @@ export function createInitialState(name: string): CharacterState {
     debuffs: [],
     totalXpEarned: 0,
     questsCompleted: 0,
+    streak: 0,
+    lastActiveDate: null,
+    achievements: ALL_ACHIEVEMENTS.map(a => ({ ...a, unlockedAt: null })),
+    skills: ALL_SKILLS.map(s => ({ ...s, unlockedAt: null })),
+    xpHistory: [],
   };
 }
 
@@ -68,8 +153,44 @@ export function addLog(state: CharacterState, log: Omit<ActivityLog, 'id' | 'tim
   };
   return {
     ...state,
-    logs: [newLog, ...state.logs].slice(0, 50),
+    logs: [newLog, ...state.logs].slice(0, 100),
   };
+}
+
+function updateXpHistory(state: CharacterState, amount: number): CharacterState {
+  const today = todayString();
+  const history = [...state.xpHistory];
+  const idx = history.findIndex(e => e.date === today);
+  if (idx >= 0) {
+    history[idx] = { ...history[idx], xp: history[idx].xp + amount };
+  } else {
+    history.push({ date: today, xp: amount });
+  }
+  return { ...state, xpHistory: history.slice(-30) };
+}
+
+function updateStreak(state: CharacterState): CharacterState {
+  const today = todayString();
+  if (state.lastActiveDate === today) return state;
+
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayStr = yesterday.toISOString().split('T')[0];
+
+  let newStreak = state.lastActiveDate === yesterdayStr ? state.streak + 1 : 1;
+  let updated: CharacterState = { ...state, streak: newStreak, lastActiveDate: today };
+
+  if (newStreak > 1) {
+    const streakBonus = Math.min(newStreak * 5, 100);
+    updated = gainXP(updated, streakBonus);
+    updated = addLog(updated, {
+      type: 'streak',
+      message: `🔥 ${newStreak}일 연속 달성! 스트릭 보너스 +${streakBonus}XP`,
+      value: streakBonus,
+    });
+  }
+
+  return checkAchievements(updated);
 }
 
 export function gainXP(state: CharacterState, amount: number): CharacterState {
@@ -78,56 +199,88 @@ export function gainXP(state: CharacterState, amount: number): CharacterState {
   totalXpEarned += amount;
 
   let leveledUp = false;
+  let newLevel = level;
   while (xp >= xpToNextLevel) {
     xp -= xpToNextLevel;
-    level += 1;
-    xpToNextLevel = calcXpToNextLevel(level);
+    newLevel += 1;
+    xpToNextLevel = calcXpToNextLevel(newLevel);
     leveledUp = true;
   }
 
   let updated: CharacterState = {
     ...state,
     xp,
-    level,
+    level: newLevel,
     xpToNextLevel,
-    title: getTitleForLevel(level),
+    title: getTitleForLevel(newLevel),
     totalXpEarned,
   };
+
+  updated = updateXpHistory(updated, amount);
 
   if (leveledUp) {
     updated = addLog(updated, {
       type: 'levelup',
-      message: `레벨 업! Lv.${level} 달성 - 칭호: ${getTitleForLevel(level)}`,
-      value: level,
+      message: `레벨 업! Lv.${newLevel} 달성 - 칭호: ${getTitleForLevel(newLevel)}`,
+      value: newLevel,
     });
+    updated = checkAchievements(updated);
+    updated = checkSkills(updated);
   }
 
   return updated;
+}
+
+function applyClassMultiplier(state: CharacterState, stat: StatKey, amount: number): number {
+  const multiplier = CLASS_DEFS[state.characterClass].statMultipliers[stat];
+  return Math.round(amount * multiplier);
 }
 
 export function completeQuest(state: CharacterState, questId: string): CharacterState {
   const quest = state.quests.find(q => q.id === questId);
   if (!quest || quest.status !== 'active') return state;
 
+  const baseStatReward = STAT_REWARDS[quest.difficulty];
+  const actualStatReward = applyClassMultiplier(state, quest.stat, baseStatReward);
   const xpReward = XP_REWARDS[quest.difficulty];
-  const statReward = STAT_REWARDS[quest.difficulty];
+
+  let updatedQuests = state.quests.map(q =>
+    q.id === questId
+      ? { ...q, status: 'completed' as const, completedAt: Date.now() }
+      : q
+  );
+
+  if (quest.recurring) {
+    const resetQuest: Quest = {
+      ...quest,
+      id: crypto.randomUUID(),
+      status: 'active',
+      createdAt: Date.now(),
+      completedAt: undefined,
+      lastResetAt: Date.now(),
+    };
+    updatedQuests = [...updatedQuests, resetQuest];
+  }
 
   let updated: CharacterState = {
     ...state,
-    quests: state.quests.map(q => q.id === questId ? { ...q, status: 'completed' as const, completedAt: Date.now() } : q),
+    quests: updatedQuests,
     stats: {
       ...state.stats,
-      [quest.stat]: state.stats[quest.stat] + statReward,
+      [quest.stat]: state.stats[quest.stat] + actualStatReward,
     },
     questsCompleted: state.questsCompleted + 1,
   };
 
   updated = gainXP(updated, xpReward);
+  updated = updateStreak(updated);
   updated = addLog(updated, {
     type: 'quest',
-    message: `퀘스트 완료: "${quest.title}" +${xpReward}XP, ${STAT_LABELS[quest.stat]} +${statReward}`,
+    message: `퀘스트 완료: "${quest.title}" +${xpReward}XP, ${STAT_LABELS[quest.stat]} +${actualStatReward}`,
     value: xpReward,
   });
+  updated = checkAchievements(updated);
+  updated = checkSkills(updated);
 
   return updated;
 }
@@ -139,11 +292,12 @@ export function failQuest(state: CharacterState, questId: string): CharacterStat
   let updated: CharacterState = {
     ...state,
     quests: state.quests.map(q => q.id === questId ? { ...q, status: 'failed' as const } : q),
+    streak: 0,
   };
 
   updated = addLog(updated, {
     type: 'debuff',
-    message: `퀘스트 실패: "${quest.title}" - 의지력 약화`,
+    message: `퀘스트 실패: "${quest.title}" - 스트릭 초기화`,
   });
 
   return updated;
@@ -162,7 +316,7 @@ export function addQuest(state: CharacterState, quest: Omit<Quest, 'id' | 'statu
   let updated = { ...state, quests: [newQuest, ...state.quests] };
   updated = addLog(updated, {
     type: 'quest',
-    message: `새 퀘스트 수락: "${quest.title}" [${DIFFICULTY_LABELS[quest.difficulty]}]`,
+    message: `새 퀘스트 수락: "${quest.title}" [${DIFFICULTY_LABELS[quest.difficulty]}]${quest.recurring ? ` (${quest.recurring === 'daily' ? '매일' : '매주'} 반복)` : ''}`,
   });
 
   return updated;
@@ -211,6 +365,58 @@ export function resolveDebuff(state: CharacterState, debuffId: string): Characte
   return updated;
 }
 
+function checkAchievements(state: CharacterState): CharacterState {
+  const maxStat = Math.max(...Object.values(state.stats));
+  const activeDebuffs = state.debuffs.filter(d => !d.resolved).length;
+
+  const conditions: Record<string, boolean> = {
+    first_quest: state.questsCompleted >= 1,
+    quest_10: state.questsCompleted >= 10,
+    quest_50: state.questsCompleted >= 50,
+    quest_100: state.questsCompleted >= 100,
+    level_5: state.level >= 5,
+    level_10: state.level >= 10,
+    level_20: state.level >= 20,
+    streak_3: state.streak >= 3,
+    streak_7: state.streak >= 7,
+    streak_30: state.streak >= 30,
+    stat_20: maxStat >= 20,
+    stat_50: maxStat >= 50,
+    epic_quest: state.quests.some(q => q.difficulty === 'epic' && q.status === 'completed'),
+    no_debuff: activeDebuffs === 0 && state.questsCompleted >= 3,
+  };
+
+  let updated = state;
+  const newAchievements = state.achievements.map(a => {
+    if (a.unlockedAt === null && conditions[a.id]) {
+      updated = addLog(updated, {
+        type: 'achievement',
+        message: `업적 달성: ${a.icon} "${a.title}" - ${a.description}`,
+      });
+      return { ...a, unlockedAt: Date.now() };
+    }
+    return a;
+  });
+
+  return { ...updated, achievements: newAchievements };
+}
+
+function checkSkills(state: CharacterState): CharacterState {
+  let updated = state;
+  const newSkills = state.skills.map(skill => {
+    if (skill.unlockedAt === null && state.stats[skill.stat] >= skill.requiredStatValue) {
+      updated = addLog(updated, {
+        type: 'skill',
+        message: `스킬 해금: ${skill.icon} "${skill.name}" - ${skill.description}`,
+      });
+      return { ...skill, unlockedAt: Date.now() };
+    }
+    return skill;
+  });
+
+  return { ...updated, skills: newSkills };
+}
+
 export const STAT_LABELS: Record<string, string> = {
   intelligence: '지능',
   strength: '체력',
@@ -248,3 +454,24 @@ export const DIFFICULTY_COLORS: Record<string, string> = {
   hard: '#f59e0b',
   epic: '#a855f7',
 };
+
+export const CATEGORY_LABELS: Record<string, string> = {
+  study: '공부',
+  health: '건강',
+  project: '프로젝트',
+  social: '인간관계',
+  habit: '습관',
+  other: '기타',
+};
+
+export const CATEGORY_EMOJIS: Record<string, string> = {
+  study: '📚',
+  health: '🏃',
+  project: '💻',
+  social: '👥',
+  habit: '🔄',
+  other: '📌',
+};
+
+export { updateStreak };
+export type { XpHistoryEntry };

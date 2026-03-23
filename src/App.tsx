@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import type { CharacterState, Quest, Debuff } from './types';
+import type { CharacterState, Quest, Debuff, CharacterClass } from './types';
 import {
   createInitialState,
   addQuest,
@@ -12,8 +12,13 @@ import CharacterCard from './components/CharacterCard';
 import QuestBoard from './components/QuestBoard';
 import DebuffPanel from './components/DebuffPanel';
 import ActivityLogPanel from './components/ActivityLogPanel';
+import SkillTree from './components/SkillTree';
+import AchievementsPanel from './components/AchievementsPanel';
+import StatsChart from './components/StatsChart';
+import LevelUpOverlay from './components/LevelUpOverlay';
+import ClassSelector from './components/ClassSelector';
 
-const STORAGE_KEY = 'life-is-game-v1';
+const STORAGE_KEY = 'life-is-game-v2';
 
 function loadState(): CharacterState | null {
   try {
@@ -29,11 +34,15 @@ function saveState(state: CharacterState) {
 }
 
 type XpFloat = { id: string; amount: number };
+type Tab = 'quest' | 'skills' | 'achievements' | 'stats';
 
 export default function App() {
   const [state, setState] = useState<CharacterState | null>(null);
   const [nameInput, setNameInput] = useState('');
+  const [selectedClass, setSelectedClass] = useState<CharacterClass>('warrior');
   const [xpFloats, setXpFloats] = useState<XpFloat[]>([]);
+  const [levelUpData, setLevelUpData] = useState<{ level: number; title: string } | null>(null);
+  const [tab, setTab] = useState<Tab>('quest');
   const prevLevelRef = useRef(0);
 
   useEffect(() => {
@@ -48,12 +57,7 @@ export default function App() {
     if (state) {
       saveState(state);
       if (state.level > prevLevelRef.current && prevLevelRef.current !== 0) {
-        const card = document.getElementById('character-card');
-        if (card) {
-          card.classList.remove('level-up-pulse');
-          void card.offsetWidth;
-          card.classList.add('level-up-pulse');
-        }
+        setLevelUpData({ level: state.level, title: state.title });
       }
       prevLevelRef.current = state.level;
     }
@@ -68,7 +72,7 @@ export default function App() {
   function handleStart(e: React.FormEvent) {
     e.preventDefault();
     if (!nameInput.trim()) return;
-    const s = createInitialState(nameInput.trim());
+    const s = createInitialState(nameInput.trim(), selectedClass);
     setState(s);
     prevLevelRef.current = s.level;
   }
@@ -110,14 +114,14 @@ export default function App() {
   if (!state) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#0a0a0f]">
-        <div className="w-full max-w-sm mx-4">
+        <div className="w-full max-w-md mx-4">
           <div className="text-center mb-8">
             <div className="text-5xl mb-4">⚔️</div>
             <h1 className="text-3xl font-black text-white mb-2">Life is Game</h1>
             <p className="text-gray-400 text-sm">현실을 RPG로. 자신을 레벨업하라.</p>
           </div>
 
-          <form onSubmit={handleStart} className="rounded-2xl border border-purple-900/40 bg-[#13111c] p-6 space-y-4">
+          <form onSubmit={handleStart} className="rounded-2xl border border-purple-900/40 bg-[#13111c] p-6 space-y-5">
             <div>
               <label className="text-xs text-gray-400 uppercase tracking-wider block mb-2">캐릭터 이름</label>
               <input
@@ -129,6 +133,7 @@ export default function App() {
                 required
               />
             </div>
+            <ClassSelector selected={selectedClass} onChange={setSelectedClass} />
             <button
               type="submit"
               className="w-full bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 rounded-xl transition-colors text-base"
@@ -136,20 +141,28 @@ export default function App() {
               모험 시작
             </button>
           </form>
-
-          <div className="mt-4 grid grid-cols-2 gap-2 text-center text-xs text-gray-600">
-            <div className="p-2 rounded-lg bg-gray-900/50">🧠 지능 스탯</div>
-            <div className="p-2 rounded-lg bg-gray-900/50">💪 체력 스탯</div>
-            <div className="p-2 rounded-lg bg-gray-900/50">📜 퀘스트 시스템</div>
-            <div className="p-2 rounded-lg bg-gray-900/50">⚡ 경험치 & 레벨업</div>
-          </div>
         </div>
       </div>
     );
   }
 
+  const TABS: { key: Tab; label: string }[] = [
+    { key: 'quest', label: '퀘스트' },
+    { key: 'skills', label: '스킬' },
+    { key: 'achievements', label: '업적' },
+    { key: 'stats', label: '통계' },
+  ];
+
   return (
     <div className="min-h-screen bg-[#0a0a0f]">
+      {levelUpData && (
+        <LevelUpOverlay
+          level={levelUpData.level}
+          title={levelUpData.title}
+          onDone={() => setLevelUpData(null)}
+        />
+      )}
+
       <header className="border-b border-purple-900/30 bg-[#0d0b14] px-4 py-3">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -180,17 +193,52 @@ export default function App() {
           </div>
 
           <div className="lg:col-span-2 space-y-5">
-            <QuestBoard
-              quests={state.quests}
-              onComplete={handleCompleteQuest}
-              onFail={handleFailQuest}
-              onAdd={handleAddQuest}
-            />
-            <DebuffPanel
-              debuffs={state.debuffs}
-              onAdd={handleAddDebuff}
-              onResolve={handleResolveDebuff}
-            />
+            <div className="flex gap-1 bg-[#13111c] rounded-xl p-1 border border-purple-900/30">
+              {TABS.map(t => (
+                <button
+                  key={t.key}
+                  onClick={() => setTab(t.key)}
+                  className={`flex-1 text-sm py-2 rounded-lg transition-colors font-medium ${
+                    tab === t.key
+                      ? 'bg-purple-700 text-white'
+                      : 'text-gray-400 hover:text-gray-200'
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+
+            {tab === 'quest' && (
+              <>
+                <QuestBoard
+                  quests={state.quests}
+                  onComplete={handleCompleteQuest}
+                  onFail={handleFailQuest}
+                  onAdd={handleAddQuest}
+                />
+                <DebuffPanel
+                  debuffs={state.debuffs}
+                  onAdd={handleAddDebuff}
+                  onResolve={handleResolveDebuff}
+                />
+              </>
+            )}
+            {tab === 'skills' && (
+              <SkillTree skills={state.skills} stats={state.stats} />
+            )}
+            {tab === 'achievements' && (
+              <AchievementsPanel achievements={state.achievements} />
+            )}
+            {tab === 'stats' && (
+              <StatsChart
+                xpHistory={state.xpHistory}
+                totalXpEarned={state.totalXpEarned}
+                questsCompleted={state.questsCompleted}
+                level={state.level}
+                streak={state.streak}
+              />
+            )}
           </div>
         </div>
       </main>

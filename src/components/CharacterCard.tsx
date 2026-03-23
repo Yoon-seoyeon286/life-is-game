@@ -1,5 +1,5 @@
 import type { CharacterState } from '../types';
-import { STAT_LABELS, STAT_COLORS, STAT_EMOJIS } from '../gameLogic';
+import { STAT_LABELS, STAT_COLORS, STAT_EMOJIS, CLASS_DEFS } from '../gameLogic';
 
 interface Props {
   state: CharacterState;
@@ -8,6 +8,9 @@ interface Props {
 export default function CharacterCard({ state }: Props) {
   const xpPercent = Math.min(100, (state.xp / state.xpToNextLevel) * 100);
   const activeDebuffs = state.debuffs.filter(d => !d.resolved).length;
+  const classDef = CLASS_DEFS[state.characterClass];
+  const unlockedAchievements = state.achievements.filter(a => a.unlockedAt !== null).length;
+  const unlockedSkills = state.skills.filter(s => s.unlockedAt !== null).length;
 
   return (
     <div className="relative rounded-2xl border border-purple-900/40 bg-gradient-to-br from-[#13111c] to-[#1a1628] p-6 shadow-2xl">
@@ -15,19 +18,32 @@ export default function CharacterCard({ state }: Props) {
 
       <div className="relative flex items-start justify-between mb-4">
         <div>
-          <div className="text-xs text-purple-400 uppercase tracking-widest mb-1">Player</div>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-xs text-purple-400 uppercase tracking-widest">Player</span>
+            <span
+              className="text-xs px-2 py-0.5 rounded-full font-medium"
+              style={{ color: classDef.color, backgroundColor: `${classDef.color}22`, border: `1px solid ${classDef.color}55` }}
+            >
+              {classDef.icon} {classDef.label}
+            </span>
+          </div>
           <h2 className="text-2xl font-bold text-white">{state.name}</h2>
-          <div className="flex items-center gap-2 mt-1">
+          <div className="flex items-center gap-2 mt-1 flex-wrap">
             <span className="text-sm text-purple-300 font-medium">[{state.title}]</span>
+            {state.streak > 0 && (
+              <span className="text-xs bg-orange-900/50 text-orange-400 border border-orange-800/50 px-2 py-0.5 rounded-full">
+                🔥 {state.streak}일 연속
+              </span>
+            )}
             {activeDebuffs > 0 && (
               <span className="text-xs bg-red-900/50 text-red-400 border border-red-800/50 px-2 py-0.5 rounded-full">
-                디버프 {activeDebuffs}
+                💀 디버프 {activeDebuffs}
               </span>
             )}
           </div>
         </div>
 
-        <div className="text-center">
+        <div className="text-center shrink-0">
           <div className="w-16 h-16 rounded-full border-2 border-purple-600 bg-purple-900/30 flex items-center justify-center text-2xl font-black text-purple-300 relative">
             {state.level}
             <div className="absolute -bottom-1 -right-1 text-xs bg-purple-600 rounded-full w-5 h-5 flex items-center justify-center text-white font-bold">
@@ -70,16 +86,37 @@ export default function CharacterCard({ state }: Props) {
         ))}
       </div>
 
-      <div className="relative mt-4 pt-4 border-t border-gray-700/50 grid grid-cols-2 gap-2 text-center">
+      <div className="relative mt-4 pt-4 border-t border-gray-700/50 grid grid-cols-4 gap-1 text-center">
         <div>
-          <div className="text-lg font-bold text-yellow-400">{state.totalXpEarned.toLocaleString()}</div>
-          <div className="text-xs text-gray-500">총 경험치</div>
+          <div className="text-base font-bold text-yellow-400">{state.totalXpEarned.toLocaleString()}</div>
+          <div className="text-xs text-gray-500">총 XP</div>
         </div>
         <div>
-          <div className="text-lg font-bold text-green-400">{state.questsCompleted}</div>
-          <div className="text-xs text-gray-500">완료 퀘스트</div>
+          <div className="text-base font-bold text-green-400">{state.questsCompleted}</div>
+          <div className="text-xs text-gray-500">완료</div>
+        </div>
+        <div>
+          <div className="text-base font-bold text-orange-400">{state.streak}</div>
+          <div className="text-xs text-gray-500">스트릭</div>
+        </div>
+        <div>
+          <div className="text-base font-bold text-purple-400">{unlockedAchievements}</div>
+          <div className="text-xs text-gray-500">업적</div>
         </div>
       </div>
+
+      {unlockedSkills > 0 && (
+        <div className="relative mt-3 pt-3 border-t border-gray-700/50">
+          <div className="text-xs text-gray-500 mb-2">해금된 스킬</div>
+          <div className="flex flex-wrap gap-1">
+            {state.skills.filter(s => s.unlockedAt !== null).map(skill => (
+              <span key={skill.id} className="text-base" title={skill.name + ': ' + skill.description}>
+                {skill.icon}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
