@@ -87,7 +87,7 @@ function todayString(): string {
   return new Date().toISOString().split('T')[0];
 }
 
-const ALL_ACHIEVEMENTS: Omit<Achievement, 'unlockedAt'>[] = [
+export const ALL_ACHIEVEMENTS: Omit<Achievement, 'unlockedAt'>[] = [
   { id: 'first_quest', title: '첫 발걸음', description: '첫 번째 퀘스트를 완료하라', icon: '👣' },
   { id: 'quest_10', title: '꾸준한 모험가', description: '퀘스트 10개 완료', icon: '📜' },
   { id: 'quest_50', title: '철의 의지', description: '퀘스트 50개 완료', icon: '🏆' },
@@ -104,7 +104,7 @@ const ALL_ACHIEVEMENTS: Omit<Achievement, 'unlockedAt'>[] = [
   { id: 'no_debuff', title: '완벽한 하루', description: '디버프 없이 퀘스트 3개 완료', icon: '✨' },
 ];
 
-const ALL_SKILLS: Omit<SkillNode, 'unlockedAt'>[] = [
+export const ALL_SKILLS: Omit<SkillNode, 'unlockedAt'>[] = [
   { id: 'focus', name: '집중력', description: '지능 10 달성 - 학습 속도 +10%', icon: '🧠', stat: 'intelligence', requiredStatValue: 10 },
   { id: 'deep_study', name: '심층 탐구', description: '지능 25 달성 - 어려운 퀘스트 XP +20%', icon: '📚', stat: 'intelligence', requiredStatValue: 25 },
   { id: 'iron_body', name: '강철 육체', description: '체력 10 달성 - 체력 스탯 성장 +15%', icon: '💪', stat: 'strength', requiredStatValue: 10 },

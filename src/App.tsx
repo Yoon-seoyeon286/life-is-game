@@ -9,6 +9,9 @@ import {
   resolveDebuff,
   challengeBoss,
   getAvailableBoss,
+  ALL_BOSSES,
+  ALL_ACHIEVEMENTS,
+  ALL_SKILLS,
 } from './gameLogic';
 import CharacterCard from './components/CharacterCard';
 import QuestBoard from './components/QuestBoard';
@@ -22,15 +25,52 @@ import ClassSelector from './components/ClassSelector';
 import BossModal from './components/BossModal';
 
 const STORAGE_KEY = 'life-is-game-v3';
+const OLD_KEYS = ['life-is-game-v1', 'life-is-game-v2'];
+
+function migrateState(raw: CharacterState): CharacterState {
+  return {
+    ...raw,
+    characterClass: raw.characterClass ?? 'ranger',
+    streak: raw.streak ?? 0,
+    lastActiveDate: raw.lastActiveDate ?? null,
+    totalXpEarned: raw.totalXpEarned ?? 0,
+    questsCompleted: raw.questsCompleted ?? 0,
+    xpHistory: raw.xpHistory ?? [],
+    logs: raw.logs ?? [],
+    debuffs: raw.debuffs ?? [],
+    achievements: raw.achievements?.length
+      ? raw.achievements
+      : ALL_ACHIEVEMENTS.map(a => ({ ...a, unlockedAt: null })),
+    skills: raw.skills?.length
+      ? raw.skills
+      : ALL_SKILLS.map(s => ({ ...s, unlockedAt: null })),
+    bosses: raw.bosses?.length
+      ? raw.bosses
+      : ALL_BOSSES.map(b => ({ ...b, defeatedAt: null })),
+    quests: (raw.quests ?? []).map(q => ({
+      ...q,
+      category: q.category ?? 'other',
+      recurring: q.recurring ?? null,
+    })),
+  };
+}
 
 function loadState(): CharacterState | null {
   try {
-    ['life-is-game-v1', 'life-is-game-v2'].forEach(k => localStorage.removeItem(k));
+    // 이전 키 데이터 마이그레이션 (삭제하지 않고 읽어서 변환)
+    for (const oldKey of OLD_KEYS) {
+      const oldRaw = localStorage.getItem(oldKey);
+      if (oldRaw) {
+        const oldParsed = JSON.parse(oldRaw) as CharacterState;
+        const migrated = migrateState(oldParsed);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(migrated));
+        localStorage.removeItem(oldKey);
+        return migrated;
+      }
+    }
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as CharacterState;
-    if (!parsed.characterClass) return null;
-    return parsed;
+    return migrateState(JSON.parse(raw) as CharacterState);
   } catch {
     return null;
   }
