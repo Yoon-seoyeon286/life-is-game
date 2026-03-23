@@ -5,10 +5,14 @@ import {
   addQuest,
   completeQuest,
   failQuest,
+  deleteQuest,
   addDebuff,
   resolveDebuff,
   challengeBoss,
   getAvailableBoss,
+  equipItem,
+  completePomodoroSession,
+  checkDailyQuestFailures,
   ALL_BOSSES,
   ALL_ACHIEVEMENTS,
   ALL_SKILLS,
@@ -23,9 +27,12 @@ import StatsChart from './components/StatsChart';
 import LevelUpOverlay from './components/LevelUpOverlay';
 import ClassSelector from './components/ClassSelector';
 import BossModal from './components/BossModal';
+import ItemPanel from './components/ItemPanel';
+import PomodoroTimer from './components/PomodoroTimer';
+import WeeklyReport from './components/WeeklyReport';
 
-const STORAGE_KEY = 'life-is-game-v3';
-const OLD_KEYS = ['life-is-game-v1', 'life-is-game-v2'];
+const STORAGE_KEY = 'life-is-game-v4';
+const OLD_KEYS = ['life-is-game-v1', 'life-is-game-v2', 'life-is-game-v3'];
 
 function migrateState(raw: CharacterState): CharacterState {
   return {
@@ -53,6 +60,10 @@ function migrateState(raw: CharacterState): CharacterState {
       category: q.category ?? 'other',
       recurring: q.recurring ?? null,
     })),
+    items: raw.items ?? [],
+    notifications: raw.notifications ?? [],
+    pomodoroMinutes: raw.pomodoroMinutes ?? 0,
+    lastQuestCheckDate: raw.lastQuestCheckDate ?? null,
   };
 }
 
@@ -82,7 +93,7 @@ function saveState(state: CharacterState) {
 }
 
 type XpFloat = { id: string; amount: number };
-type Tab = 'quest' | 'skills' | 'achievements' | 'stats';
+type Tab = 'quest' | 'skills' | 'achievements' | 'stats' | 'items' | 'pomodoro' | 'report';
 
 export default function App() {
   const [state, setState] = useState<CharacterState | null>(null);
@@ -97,8 +108,9 @@ export default function App() {
   useEffect(() => {
     const saved = loadState();
     if (saved) {
-      setState(saved);
-      prevLevelRef.current = saved.level;
+      const checkedState = checkDailyQuestFailures(saved);
+      setState(checkedState);
+      prevLevelRef.current = checkedState.level;
     }
   }, []);
 
@@ -142,6 +154,22 @@ export default function App() {
 
   function handleFailQuest(id: string) {
     setState(s => s ? failQuest(s, id) : s);
+  }
+
+  function handleDeleteQuest(id: string) {
+    setState(s => s ? deleteQuest(s, id) : s);
+  }
+
+  function handleEquipItem(id: string) {
+    setState(s => s ? equipItem(s, id) : s);
+  }
+
+  function handleCompletePomodoroSession(minutes: number) {
+    setState(prev => {
+      if (!prev) return prev;
+      showXpFloat(minutes * 2);
+      return completePomodoroSession(prev, minutes);
+    });
   }
 
   function handleAddDebuff(debuff: Omit<Debuff, 'id' | 'createdAt' | 'resolved'>) {
@@ -206,8 +234,11 @@ export default function App() {
 
   const TABS: { key: Tab; label: string }[] = [
     { key: 'quest', label: '퀘스트' },
+    { key: 'pomodoro', label: '포모도로' },
+    { key: 'items', label: '인벤토리' },
     { key: 'skills', label: '스킬' },
     { key: 'achievements', label: '업적' },
+    { key: 'report', label: '리포트' },
     { key: 'stats', label: '통계' },
   ];
 
@@ -282,6 +313,7 @@ export default function App() {
                   quests={state.quests}
                   onComplete={handleCompleteQuest}
                   onFail={handleFailQuest}
+                  onDelete={handleDeleteQuest}
                   onAdd={handleAddQuest}
                 />
                 <DebuffPanel
@@ -291,11 +323,30 @@ export default function App() {
                 />
               </>
             )}
+            {tab === 'pomodoro' && (
+              <PomodoroTimer
+                onComplete={handleCompletePomodoroSession}
+                totalMinutes={state.pomodoroMinutes}
+              />
+            )}
+            {tab === 'items' && (
+              <ItemPanel
+                items={state.items}
+                onEquip={handleEquipItem}
+              />
+            )}
             {tab === 'skills' && (
               <SkillTree skills={state.skills} stats={state.stats} />
             )}
             {tab === 'achievements' && (
               <AchievementsPanel achievements={state.achievements} />
+            )}
+            {tab === 'report' && (
+              <WeeklyReport
+                xpHistory={state.xpHistory}
+                questsCompleted={state.questsCompleted}
+                streak={state.streak}
+              />
             )}
             {tab === 'stats' && (
               <StatsChart

@@ -9,6 +9,7 @@ interface Props {
   quests: Quest[];
   onComplete: (id: string) => void;
   onFail: (id: string) => void;
+  onDelete: (id: string) => void;
   onAdd: (quest: Omit<Quest, 'id' | 'status' | 'createdAt' | 'xpReward' | 'statReward'>) => void;
 }
 
@@ -20,7 +21,7 @@ const XP_MAP: Record<QuestDifficulty, number> = { easy: 30, normal: 60, hard: 12
 type MainTab = 'daily' | 'quests';
 type StatusFilter = 'active' | 'completed' | 'failed';
 
-export default function QuestBoard({ quests, onComplete, onFail, onAdd }: Props) {
+export default function QuestBoard({ quests, onComplete, onFail, onDelete, onAdd }: Props) {
   const [showForm, setShowForm] = useState(false);
   const [mainTab, setMainTab] = useState<MainTab>('daily');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('active');
@@ -228,17 +229,18 @@ export default function QuestBoard({ quests, onComplete, onFail, onAdd }: Props)
           </div>
         )}
         {currentList.map(quest => (
-          <QuestItem key={quest.id} quest={quest} onComplete={onComplete} onFail={onFail} isDaily={mainTab === 'daily'} />
+          <QuestItem key={quest.id} quest={quest} onComplete={onComplete} onFail={onFail} onDelete={onDelete} isDaily={mainTab === 'daily'} />
         ))}
       </div>
     </div>
   );
 }
 
-function QuestItem({ quest, onComplete, onFail, isDaily }: {
+function QuestItem({ quest, onComplete, onFail, onDelete, isDaily }: {
   quest: Quest;
   onComplete: (id: string) => void;
   onFail: (id: string) => void;
+  onDelete: (id: string) => void;
   isDaily: boolean;
 }) {
   return (
@@ -286,6 +288,16 @@ function QuestItem({ quest, onComplete, onFail, isDaily }: {
               className="text-xs bg-red-900/60 hover:bg-red-800 text-red-400 px-2 py-1 rounded-lg transition-colors"
             >
               실패
+            </button>
+            <button
+              onClick={() => {
+                if (window.confirm('이 퀘스트를 삭제하시겠습니까?')) {
+                  onDelete(quest.id);
+                }
+              }}
+              className="text-xs bg-gray-800/60 hover:bg-gray-700 text-gray-400 px-2 py-1 rounded-lg transition-colors"
+            >
+              삭제
             </button>
           </div>
         )}

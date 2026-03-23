@@ -1,4 +1,4 @@
-const CACHE_NAME = 'life-is-game-v3';
+const CACHE_NAME = 'life-is-game-v4';
 const BASE = '/life-is-game';
 
 self.addEventListener('install', event => {

@@ -1,6 +1,6 @@
 import type {
   CharacterState, Quest, Debuff, ActivityLog,
-  QuestDifficulty, CharacterClass, Achievement, SkillNode, StatKey, XpHistoryEntry, Boss
+  QuestDifficulty, CharacterClass, Achievement, SkillNode, StatKey, XpHistoryEntry, Boss, Item, ItemRarity
 } from './types';
 
 const XP_REWARDS: Record<QuestDifficulty, number> = {
@@ -143,6 +143,10 @@ export function createInitialState(name: string, characterClass: CharacterClass)
     skills: ALL_SKILLS.map(s => ({ ...s, unlockedAt: null })),
     xpHistory: [],
     bosses: ALL_BOSSES.map(b => ({ ...b, defeatedAt: null })),
+    items: [],
+    notifications: [],
+    pomodoroMinutes: 0,
+    lastQuestCheckDate: null,
   };
 }
 
@@ -290,15 +294,30 @@ export function failQuest(state: CharacterState, questId: string): CharacterStat
   const quest = state.quests.find(q => q.id === questId);
   if (!quest || quest.status !== 'active') return state;
 
+  const penaltyAmount = STAT_REWARDS[quest.difficulty];
+
   let updated: CharacterState = {
     ...state,
     quests: state.quests.map(q => q.id === questId ? { ...q, status: 'failed' as const } : q),
     streak: 0,
+    stats: {
+      ...state.stats,
+      [quest.stat]: Math.max(1, state.stats[quest.stat] - penaltyAmount),
+    },
   };
+
+  const debuff: Omit<Debuff, 'id' | 'createdAt' | 'resolved'> = {
+    title: `"${quest.title}" 실패`,
+    description: `퀘스트를 완료하지 못했습니다. ${STAT_LABELS[quest.stat]} 능력이 저하되었습니다.`,
+    statPenalty: quest.stat,
+    penaltyAmount: penaltyAmount,
+  };
+
+  updated = addDebuff(updated, debuff);
 
   updated = addLog(updated, {
     type: 'debuff',
-    message: `퀘스트 실패: "${quest.title}" - 스트릭 초기화`,
+    message: `퀘스트 실패: "${quest.title}" - 스트릭 초기화, ${STAT_LABELS[quest.stat]} -${penaltyAmount}`,
   });
 
   return updated;
@@ -485,7 +504,7 @@ export const ALL_BOSSES: Omit<Boss, 'defeatedAt'>[] = [
     description: '매일 미루고 포기하는 습관이 만들어낸 어둠의 존재. 자제력과 체력으로 쓰러뜨려라.',
     emoji: '😴',
     requiredLevel: 3,
-    power: 30,
+    power: 50,
     weakStats: ['discipline', 'strength'],
     xpReward: 300,
     specialTitle: '나태 정복자',
@@ -497,7 +516,7 @@ export const ALL_BOSSES: Omit<Boss, 'defeatedAt'>[] = [
     description: '스마트폰, SNS, 유튜브... 끝없는 유혹의 화신. 지능과 자제력으로 극복하라.',
     emoji: '👻',
     requiredLevel: 6,
-    power: 60,
+    power: 100,
     weakStats: ['intelligence', 'discipline'],
     xpReward: 600,
     specialTitle: '집중의 달인',
@@ -509,7 +528,7 @@ export const ALL_BOSSES: Omit<Boss, 'defeatedAt'>[] = [
     description: '실패가 두렵다는 핑계로 새로운 도전을 막아서는 돌덩이. 창의력과 사교성으로 부숴라.',
     emoji: '🗿',
     requiredLevel: 10,
-    power: 100,
+    power: 180,
     weakStats: ['creativity', 'social'],
     xpReward: 1000,
     specialTitle: '용기의 전사',
@@ -521,7 +540,7 @@ export const ALL_BOSSES: Omit<Boss, 'defeatedAt'>[] = [
     description: '과부하로 지쳐버린 영혼이 용으로 각성한 존재. 모든 스탯의 균형으로만 쓰러뜨릴 수 있다.',
     emoji: '🐉',
     requiredLevel: 15,
-    power: 150,
+    power: 280,
     weakStats: ['discipline', 'strength', 'intelligence'],
     xpReward: 1500,
     specialTitle: '드래곤 슬레이어',
@@ -533,7 +552,7 @@ export const ALL_BOSSES: Omit<Boss, 'defeatedAt'>[] = [
     description: '"아직 완벽하지 않아"라는 말로 모든 시작을 막는 불사의 마법사. 창의력과 지능으로 무너뜨려라.',
     emoji: '💀',
     requiredLevel: 20,
-    power: 200,
+    power: 400,
     weakStats: ['creativity', 'intelligence', 'social'],
     xpReward: 2000,
     specialTitle: '완벽주의 극복자',
@@ -545,7 +564,7 @@ export const ALL_BOSSES: Omit<Boss, 'defeatedAt'>[] = [
     description: '지금의 나에 안주하려는 거대한 자아. 모든 스탯을 최고로 끌어올린 자만이 도전할 수 있다.',
     emoji: '⚡',
     requiredLevel: 30,
-    power: 300,
+    power: 600,
     weakStats: ['discipline', 'strength', 'intelligence', 'creativity', 'social'],
     xpReward: 5000,
     specialTitle: '자아 초월자',
@@ -584,6 +603,10 @@ export function challengeBoss(state: CharacterState, bossId: string): { state: C
       message: `보스 토벌! "${boss.name}" 격파 - +${boss.xpReward}XP, 칭호 [${boss.specialTitle}] 획득`,
       value: boss.xpReward,
     });
+    
+    const rewardItem = generateBossReward(boss);
+    updated = addItem(updated, rewardItem);
+    
     return { state: updated, won: true };
   } else {
     const penaltyStat = boss.weakStats[Math.floor(Math.random() * boss.weakStats.length)];
@@ -602,3 +625,150 @@ export function challengeBoss(state: CharacterState, bossId: string): { state: C
     return { state: updated, won: false };
   }
 }
+
+export function deleteQuest(state: CharacterState, questId: string): CharacterState {
+  const quest = state.quests.find(q => q.id === questId);
+  if (!quest) return state;
+
+  let updated: CharacterState = {
+    ...state,
+    quests: state.quests.filter(q => q.id !== questId),
+  };
+
+  updated = addLog(updated, {
+    type: 'quest',
+    message: `퀘스트 삭제: "${quest.title}"`,
+  });
+
+  return updated;
+}
+
+const ITEM_POOL: Omit<Item, 'id' | 'equipped' | 'acquiredAt'>[] = [
+  { name: '지혜의 안경', description: '지능 +3', icon: '👓', rarity: 'common', statBoost: { intelligence: 3 } },
+  { name: '근육 보조제', description: '체력 +3', icon: '💊', rarity: 'common', statBoost: { strength: 3 } },
+  { name: '영감의 깃털', description: '창의력 +3', icon: '🪶', rarity: 'common', statBoost: { creativity: 3 } },
+  { name: '수도승의 염주', description: '자제력 +3', icon: '📿', rarity: 'common', statBoost: { discipline: 3 } },
+  { name: '친화력 향수', description: '사교성 +3', icon: '🌸', rarity: 'common', statBoost: { social: 3 } },
+  { name: '현자의 돌', description: '지능 +5, XP 보너스 +10%', icon: '💎', rarity: 'rare', statBoost: { intelligence: 5 }, xpBoost: 10 },
+  { name: '영웅의 검', description: '체력 +5, XP 보너스 +10%', icon: '⚔️', rarity: 'rare', statBoost: { strength: 5 }, xpBoost: 10 },
+  { name: '창조자의 붓', description: '창의력 +5, XP 보너스 +10%', icon: '🖌️', rarity: 'rare', statBoost: { creativity: 5 }, xpBoost: 10 },
+  { name: '철의 의지 반지', description: '자제력 +5, XP 보너스 +10%', icon: '💍', rarity: 'rare', statBoost: { discipline: 5 }, xpBoost: 10 },
+  { name: '왕관의 카리스마', description: '사교성 +5, XP 보너스 +10%', icon: '👑', rarity: 'rare', statBoost: { social: 5 }, xpBoost: 10 },
+  { name: '전지전능의 오브', description: '모든 스탯 +5, XP 보너스 +25%', icon: '🔮', rarity: 'epic', statBoost: { intelligence: 5, strength: 5, creativity: 5, discipline: 5, social: 5 }, xpBoost: 25 },
+  { name: '신화의 부적', description: '모든 스탯 +10, XP 보너스 +50%', icon: '✨', rarity: 'legendary', statBoost: { intelligence: 10, strength: 10, creativity: 10, discipline: 10, social: 10 }, xpBoost: 50 },
+];
+
+function generateBossReward(boss: Boss): Omit<Item, 'id' | 'equipped' | 'acquiredAt'> {
+  const rarityByLevel: ItemRarity = 
+    boss.requiredLevel >= 30 ? 'legendary' :
+    boss.requiredLevel >= 20 ? 'epic' :
+    boss.requiredLevel >= 10 ? 'rare' : 'common';
+  
+  const pool = ITEM_POOL.filter(item => item.rarity === rarityByLevel);
+  return pool[Math.floor(Math.random() * pool.length)] || ITEM_POOL[0];
+}
+
+export function addItem(state: CharacterState, item: Omit<Item, 'id' | 'equipped' | 'acquiredAt'>): CharacterState {
+  const newItem: Item = {
+    ...item,
+    id: crypto.randomUUID(),
+    equipped: false,
+    acquiredAt: Date.now(),
+  };
+
+  let updated: CharacterState = {
+    ...state,
+    items: [newItem, ...state.items],
+  };
+
+  updated = addLog(updated, {
+    type: 'item',
+    message: `아이템 획득: ${item.icon} "${item.name}" [${RARITY_LABELS[item.rarity]}]`,
+  });
+
+  return updated;
+}
+
+export function equipItem(state: CharacterState, itemId: string): CharacterState {
+  const item = state.items.find(i => i.id === itemId);
+  if (!item) return state;
+
+  const wasEquipped = item.equipped;
+  
+  let updated: CharacterState = {
+    ...state,
+    items: state.items.map(i => i.id === itemId ? { ...i, equipped: !wasEquipped } : i),
+  };
+
+  if (!wasEquipped && item.statBoost) {
+    const newStats = { ...state.stats };
+    Object.entries(item.statBoost).forEach(([stat, boost]) => {
+      newStats[stat as StatKey] += boost || 0;
+    });
+    updated = { ...updated, stats: newStats };
+  } else if (wasEquipped && item.statBoost) {
+    const newStats = { ...state.stats };
+    Object.entries(item.statBoost).forEach(([stat, boost]) => {
+      newStats[stat as StatKey] = Math.max(1, newStats[stat as StatKey] - (boost || 0));
+    });
+    updated = { ...updated, stats: newStats };
+  }
+
+  updated = addLog(updated, {
+    type: 'item',
+    message: wasEquipped ? `아이템 장착 해제: "${item.name}"` : `아이템 장착: "${item.name}"`,
+  });
+
+  return updated;
+}
+
+export function completePomodoroSession(state: CharacterState, minutes: number): CharacterState {
+  const xpReward = Math.floor(minutes * 2);
+  
+  let updated: CharacterState = {
+    ...state,
+    pomodoroMinutes: state.pomodoroMinutes + minutes,
+  };
+
+  updated = gainXP(updated, xpReward);
+  updated = addLog(updated, {
+    type: 'pomodoro',
+    message: `포모도로 완료: ${minutes}분 집중 - +${xpReward}XP`,
+    value: xpReward,
+  });
+
+  return updated;
+}
+
+export function checkDailyQuestFailures(state: CharacterState): CharacterState {
+  const today = todayString();
+  
+  if (state.lastQuestCheckDate === today) {
+    return state;
+  }
+
+  const activeQuests = state.quests.filter(q => q.status === 'active' && q.createdAt < Date.now() - 24 * 60 * 60 * 1000);
+  
+  let updated = state;
+  activeQuests.forEach(quest => {
+    updated = failQuest(updated, quest.id);
+  });
+
+  updated = { ...updated, lastQuestCheckDate: today };
+  
+  return updated;
+}
+
+export const RARITY_LABELS: Record<ItemRarity, string> = {
+  common: '일반',
+  rare: '희귀',
+  epic: '영웅',
+  legendary: '전설',
+};
+
+export const RARITY_COLORS: Record<ItemRarity, string> = {
+  common: '#9ca3af',
+  rare: '#3b82f6',
+  epic: '#a855f7',
+  legendary: '#f59e0b',
+};

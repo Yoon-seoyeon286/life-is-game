@@ -29,7 +29,7 @@ export interface Quest {
   lastResetAt?: number;
 }
 
-export type LogType = 'xp' | 'levelup' | 'quest' | 'debuff' | 'stat' | 'achievement' | 'skill' | 'streak' | 'boss';
+export type LogType = 'xp' | 'levelup' | 'quest' | 'debuff' | 'stat' | 'achievement' | 'skill' | 'streak' | 'boss' | 'pomodoro' | 'item';
 
 export interface Boss {
   id: string;
@@ -88,6 +88,28 @@ export interface XpHistoryEntry {
   xp: number;
 }
 
+export type ItemRarity = 'common' | 'rare' | 'epic' | 'legendary';
+
+export interface Item {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  rarity: ItemRarity;
+  statBoost?: Partial<Record<StatKey, number>>;
+  xpBoost?: number;
+  equipped: boolean;
+  acquiredAt: number;
+}
+
+export interface Notification {
+  id: string;
+  questId: string;
+  questTitle: string;
+  recurring: RecurringType;
+  notifyAt: string;
+}
+
 export interface CharacterState {
   name: string;
   characterClass: CharacterClass;
@@ -107,4 +129,8 @@ export interface CharacterState {
   skills: SkillNode[];
   xpHistory: XpHistoryEntry[];
   bosses: Boss[];
+  items: Item[];
+  notifications: Notification[];
+  pomodoroMinutes: number;
+  lastQuestCheckDate: string | null;
 }
