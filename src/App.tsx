@@ -44,9 +44,10 @@ function migrateState(raw: CharacterState): CharacterState {
     skills: raw.skills?.length
       ? raw.skills
       : ALL_SKILLS.map(s => ({ ...s, unlockedAt: null })),
-    bosses: raw.bosses?.length
-      ? raw.bosses
-      : ALL_BOSSES.map(b => ({ ...b, defeatedAt: null })),
+    bosses: ALL_BOSSES.map(b => {
+      const existing = (raw.bosses ?? []).find((eb: { id: string }) => eb.id === b.id);
+      return { ...b, defeatedAt: existing?.defeatedAt ?? null };
+    }),
     quests: (raw.quests ?? []).map(q => ({
       ...q,
       category: q.category ?? 'other',
