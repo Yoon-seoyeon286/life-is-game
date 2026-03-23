@@ -7,6 +7,8 @@ import {
   failQuest,
   addDebuff,
   resolveDebuff,
+  challengeBoss,
+  getAvailableBoss,
 } from './gameLogic';
 import CharacterCard from './components/CharacterCard';
 import QuestBoard from './components/QuestBoard';
@@ -17,6 +19,7 @@ import AchievementsPanel from './components/AchievementsPanel';
 import StatsChart from './components/StatsChart';
 import LevelUpOverlay from './components/LevelUpOverlay';
 import ClassSelector from './components/ClassSelector';
+import BossModal from './components/BossModal';
 
 const STORAGE_KEY = 'life-is-game-v3';
 
@@ -47,6 +50,7 @@ export default function App() {
   const [xpFloats, setXpFloats] = useState<XpFloat[]>([]);
   const [levelUpData, setLevelUpData] = useState<{ level: number; title: string } | null>(null);
   const [tab, setTab] = useState<Tab>('quest');
+  const [showBossModal, setShowBossModal] = useState(false);
   const prevLevelRef = useRef(0);
 
   useEffect(() => {
@@ -105,6 +109,15 @@ export default function App() {
 
   function handleResolveDebuff(id: string) {
     setState(s => s ? resolveDebuff(s, id) : s);
+  }
+
+  function handleChallengeBoss(bossId: string) {
+    setState(prev => {
+      if (!prev) return prev;
+      const { state: next, won } = challengeBoss(prev, bossId);
+      if (won) showXpFloat(prev.bosses.find(b => b.id === bossId)?.xpReward ?? 0);
+      return next;
+    });
   }
 
   function handleReset() {
@@ -167,6 +180,15 @@ export default function App() {
         />
       )}
 
+      {showBossModal && state && getAvailableBoss(state) && (
+        <BossModal
+          boss={getAvailableBoss(state)!}
+          state={state}
+          onChallenge={(bossId) => { handleChallengeBoss(bossId); }}
+          onClose={() => setShowBossModal(false)}
+        />
+      )}
+
       <header className="border-b border-purple-900/30 bg-[#0d0b14] px-4 py-3">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -186,7 +208,7 @@ export default function App() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
           <div className="lg:col-span-1 space-y-5">
             <div id="character-card" className="relative">
-              <CharacterCard state={state} />
+              <CharacterCard state={state} onBossClick={() => setShowBossModal(true)} />
               {xpFloats.map(f => (
                 <div key={f.id} className="xp-float" style={{ top: '40%', left: '60%' }}>
                   +{f.amount} XP

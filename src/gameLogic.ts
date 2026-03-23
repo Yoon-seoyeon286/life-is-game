@@ -1,6 +1,6 @@
 import type {
   CharacterState, Quest, Debuff, ActivityLog,
-  QuestDifficulty, CharacterClass, Achievement, SkillNode, StatKey, XpHistoryEntry
+  QuestDifficulty, CharacterClass, Achievement, SkillNode, StatKey, XpHistoryEntry, Boss
 } from './types';
 
 const XP_REWARDS: Record<QuestDifficulty, number> = {
@@ -142,6 +142,7 @@ export function createInitialState(name: string, characterClass: CharacterClass)
     achievements: ALL_ACHIEVEMENTS.map(a => ({ ...a, unlockedAt: null })),
     skills: ALL_SKILLS.map(s => ({ ...s, unlockedAt: null })),
     xpHistory: [],
+    bosses: ALL_BOSSES.map(b => ({ ...b, defeatedAt: null })),
   };
 }
 
@@ -475,3 +476,129 @@ export const CATEGORY_EMOJIS: Record<string, string> = {
 
 export { updateStreak };
 export type { XpHistoryEntry };
+
+export const ALL_BOSSES: Omit<Boss, 'defeatedAt'>[] = [
+  {
+    id: 'sloth_demon',
+    name: '나태의 마왕',
+    title: '게으름의 화신',
+    description: '매일 미루고 포기하는 습관이 만들어낸 어둠의 존재. 자제력과 체력으로 쓰러뜨려라.',
+    emoji: '😴',
+    requiredLevel: 3,
+    power: 30,
+    weakStats: ['discipline', 'strength'],
+    xpReward: 300,
+    specialTitle: '나태 정복자',
+  },
+  {
+    id: 'distraction_wraith',
+    name: '산만의 망령',
+    title: '집중력 파괴자',
+    description: '스마트폰, SNS, 유튜브... 끝없는 유혹의 화신. 지능과 자제력으로 극복하라.',
+    emoji: '👻',
+    requiredLevel: 6,
+    power: 60,
+    weakStats: ['intelligence', 'discipline'],
+    xpReward: 600,
+    specialTitle: '집중의 달인',
+  },
+  {
+    id: 'fear_golem',
+    name: '두려움의 골렘',
+    title: '도전 회피자',
+    description: '실패가 두렵다는 핑계로 새로운 도전을 막아서는 돌덩이. 창의력과 사교성으로 부숴라.',
+    emoji: '🗿',
+    requiredLevel: 10,
+    power: 100,
+    weakStats: ['creativity', 'social'],
+    xpReward: 1000,
+    specialTitle: '용기의 전사',
+  },
+  {
+    id: 'burnout_dragon',
+    name: '번아웃 드래곤',
+    title: '의지력 흡수자',
+    description: '과부하로 지쳐버린 영혼이 용으로 각성한 존재. 모든 스탯의 균형으로만 쓰러뜨릴 수 있다.',
+    emoji: '🐉',
+    requiredLevel: 15,
+    power: 150,
+    weakStats: ['discipline', 'strength', 'intelligence'],
+    xpReward: 1500,
+    specialTitle: '드래곤 슬레이어',
+  },
+  {
+    id: 'perfectionism_lich',
+    name: '완벽주의 리치',
+    title: '영원한 미완성',
+    description: '"아직 완벽하지 않아"라는 말로 모든 시작을 막는 불사의 마법사. 창의력과 지능으로 무너뜨려라.',
+    emoji: '💀',
+    requiredLevel: 20,
+    power: 200,
+    weakStats: ['creativity', 'intelligence', 'social'],
+    xpReward: 2000,
+    specialTitle: '완벽주의 극복자',
+  },
+  {
+    id: 'ego_titan',
+    name: '자아의 타이탄',
+    title: '성장의 최종 장벽',
+    description: '지금의 나에 안주하려는 거대한 자아. 모든 스탯을 최고로 끌어올린 자만이 도전할 수 있다.',
+    emoji: '⚡',
+    requiredLevel: 30,
+    power: 300,
+    weakStats: ['discipline', 'strength', 'intelligence', 'creativity', 'social'],
+    xpReward: 5000,
+    specialTitle: '자아 초월자',
+  },
+];
+
+export function getAvailableBoss(state: CharacterState): Boss | null {
+  return state.bosses.find(b =>
+    b.defeatedAt === null && state.level >= b.requiredLevel
+  ) ?? null;
+}
+
+export function calcBossSuccessRate(state: CharacterState, boss: Boss): number {
+  const statSum = boss.weakStats.reduce((sum, s) => sum + state.stats[s], 0);
+  const avgStat = statSum / boss.weakStats.length;
+  const base = (avgStat / (boss.power / boss.weakStats.length)) * 100;
+  return Math.min(90, Math.max(10, Math.round(base)));
+}
+
+export function challengeBoss(state: CharacterState, bossId: string): { state: CharacterState; won: boolean } {
+  const boss = state.bosses.find(b => b.id === bossId);
+  if (!boss || boss.defeatedAt !== null) return { state, won: false };
+
+  const successRate = calcBossSuccessRate(state, boss);
+  const roll = Math.random() * 100;
+  const won = roll < successRate;
+
+  if (won) {
+    let updated: CharacterState = {
+      ...state,
+      bosses: state.bosses.map(b => b.id === bossId ? { ...b, defeatedAt: Date.now() } : b),
+    };
+    updated = gainXP(updated, boss.xpReward);
+    updated = addLog(updated, {
+      type: 'boss',
+      message: `보스 토벌! "${boss.name}" 격파 - +${boss.xpReward}XP, 칭호 [${boss.specialTitle}] 획득`,
+      value: boss.xpReward,
+    });
+    return { state: updated, won: true };
+  } else {
+    const penaltyStat = boss.weakStats[Math.floor(Math.random() * boss.weakStats.length)];
+    let updated: CharacterState = {
+      ...state,
+      stats: {
+        ...state.stats,
+        [penaltyStat]: Math.max(1, state.stats[penaltyStat] - 2),
+      },
+    };
+    updated = addLog(updated, {
+      type: 'boss',
+      message: `보스 토벌 실패: "${boss.name}" - ${STAT_LABELS[penaltyStat]} -2 (더 강해져서 다시 도전하라!)`,
+      value: -2,
+    });
+    return { state: updated, won: false };
+  }
+}

@@ -29,7 +29,21 @@ export interface Quest {
   lastResetAt?: number;
 }
 
-export type LogType = 'xp' | 'levelup' | 'quest' | 'debuff' | 'stat' | 'achievement' | 'skill' | 'streak';
+export type LogType = 'xp' | 'levelup' | 'quest' | 'debuff' | 'stat' | 'achievement' | 'skill' | 'streak' | 'boss';
+
+export interface Boss {
+  id: string;
+  name: string;
+  title: string;
+  description: string;
+  emoji: string;
+  requiredLevel: number;
+  power: number;
+  weakStats: StatKey[];
+  xpReward: number;
+  specialTitle: string;
+  defeatedAt: number | null;
+}
 
 export interface ActivityLog {
   id: string;
@@ -92,4 +106,5 @@ export interface CharacterState {
   achievements: Achievement[];
   skills: SkillNode[];
   xpHistory: XpHistoryEntry[];
+  bosses: Boss[];
 }

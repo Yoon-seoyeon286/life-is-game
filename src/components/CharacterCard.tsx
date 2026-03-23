@@ -1,16 +1,18 @@
 import type { CharacterState } from '../types';
-import { STAT_LABELS, STAT_COLORS, STAT_EMOJIS, CLASS_DEFS } from '../gameLogic';
+import { STAT_LABELS, STAT_COLORS, STAT_EMOJIS, CLASS_DEFS, getAvailableBoss } from '../gameLogic';
 
 interface Props {
   state: CharacterState;
+  onBossClick: () => void;
 }
 
-export default function CharacterCard({ state }: Props) {
+export default function CharacterCard({ state, onBossClick }: Props) {
   const xpPercent = Math.min(100, (state.xp / state.xpToNextLevel) * 100);
   const activeDebuffs = state.debuffs.filter(d => !d.resolved).length;
   const classDef = CLASS_DEFS[state.characterClass];
   const unlockedAchievements = state.achievements.filter(a => a.unlockedAt !== null).length;
   const unlockedSkills = state.skills.filter(s => s.unlockedAt !== null).length;
+  const availableBoss = getAvailableBoss(state);
 
   return (
     <div className="relative rounded-2xl border border-purple-900/40 bg-gradient-to-br from-[#13111c] to-[#1a1628] p-6 shadow-2xl">
@@ -115,6 +117,26 @@ export default function CharacterCard({ state }: Props) {
               </span>
             ))}
           </div>
+        </div>
+      )}
+
+      {availableBoss && (
+        <div className="relative mt-3 pt-3 border-t border-red-900/40">
+          <button
+            onClick={onBossClick}
+            className="w-full flex items-center justify-between px-4 py-3 rounded-xl border border-red-800/60 bg-red-950/30 hover:bg-red-900/40 transition-colors group"
+          >
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">{availableBoss.emoji}</span>
+              <div className="text-left">
+                <div className="text-xs text-red-400 uppercase tracking-wider">보스 출현!</div>
+                <div className="text-sm font-bold text-white">{availableBoss.name}</div>
+              </div>
+            </div>
+            <span className="text-xs bg-red-700 group-hover:bg-red-600 text-white px-3 py-1.5 rounded-lg font-bold transition-colors">
+              도전하기 ⚔️
+            </span>
+          </button>
         </div>
       )}
     </div>
