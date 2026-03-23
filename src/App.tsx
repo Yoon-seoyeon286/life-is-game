@@ -18,12 +18,16 @@ import StatsChart from './components/StatsChart';
 import LevelUpOverlay from './components/LevelUpOverlay';
 import ClassSelector from './components/ClassSelector';
 
-const STORAGE_KEY = 'life-is-game-v2';
+const STORAGE_KEY = 'life-is-game-v3';
 
 function loadState(): CharacterState | null {
   try {
+    ['life-is-game-v1', 'life-is-game-v2'].forEach(k => localStorage.removeItem(k));
     const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : null;
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as CharacterState;
+    if (!parsed.characterClass) return null;
+    return parsed;
   } catch {
     return null;
   }
