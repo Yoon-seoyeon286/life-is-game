@@ -12,10 +12,10 @@ import {
   getAvailableBoss,
   equipItem,
   completePomodoroSession,
-  checkDailyQuestFailures,
   ALL_BOSSES,
   ALL_ACHIEVEMENTS,
   ALL_SKILLS,
+  dailyReset,
 } from './gameLogic';
 import CharacterCard from './components/CharacterCard';
 import QuestBoard from './components/QuestBoard';
@@ -59,6 +59,7 @@ function migrateState(raw: CharacterState): CharacterState {
       ...q,
       category: q.category ?? 'other',
       recurring: q.recurring ?? null,
+      lastCompletedDate: q.lastCompletedDate ?? null,
     })),
     items: raw.items ?? [],
     notifications: raw.notifications ?? [],
@@ -108,9 +109,12 @@ export default function App() {
   useEffect(() => {
     const saved = loadState();
     if (saved) {
-      const checkedState = checkDailyQuestFailures(saved);
-      setState(checkedState);
-      prevLevelRef.current = checkedState.level;
+      const lastDate = localStorage.getItem('life-is-game-last-date');
+      const today = new Date().toISOString().split('T')[0];
+      const resetState = dailyReset(saved, lastDate);
+      localStorage.setItem('life-is-game-last-date', today);
+      setState(resetState);
+      prevLevelRef.current = resetState.level;
     }
   }, []);
 
@@ -138,7 +142,7 @@ export default function App() {
     prevLevelRef.current = s.level;
   }
 
-  function handleAddQuest(quest: Omit<Quest, 'id' | 'status' | 'createdAt' | 'xpReward' | 'statReward'>) {
+  function handleAddQuest(quest: Omit<Quest, 'id' | 'status' | 'createdAt' | 'xpReward' | 'statReward' | 'lastCompletedDate'>) {
     setState(s => s ? addQuest(s, quest) : s);
   }
 

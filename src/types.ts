@@ -27,6 +27,7 @@ export interface Quest {
   completedAt?: number;
   recurring: RecurringType;
   lastResetAt?: number;
+  lastCompletedDate: string | null;
 }
 
 export type LogType = 'xp' | 'levelup' | 'quest' | 'debuff' | 'stat' | 'achievement' | 'skill' | 'streak' | 'boss' | 'pomodoro' | 'item';

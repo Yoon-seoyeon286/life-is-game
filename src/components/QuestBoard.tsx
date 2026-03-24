@@ -10,7 +10,7 @@ interface Props {
   onComplete: (id: string) => void;
   onFail: (id: string) => void;
   onDelete: (id: string) => void;
-  onAdd: (quest: Omit<Quest, 'id' | 'status' | 'createdAt' | 'xpReward' | 'statReward'>) => void;
+  onAdd: (quest: Omit<Quest, 'id' | 'status' | 'createdAt' | 'xpReward' | 'statReward' | 'lastCompletedDate'>) => void;
 }
 
 const STAT_KEYS: StatKey[] = ['intelligence', 'strength', 'creativity', 'discipline', 'social'];
@@ -243,10 +243,15 @@ function QuestItem({ quest, onComplete, onFail, onDelete, isDaily }: {
   onDelete: (id: string) => void;
   isDaily: boolean;
 }) {
+  const today = new Date().toISOString().split('T')[0];
+  const doneToday = quest.recurring !== null && quest.lastCompletedDate === today;
+
   return (
-    <div className={`p-3 rounded-xl border fade-in ${
-      isDaily
-        ? 'bg-blue-950/20 border-blue-900/30'
+    <div className={`p-3 rounded-xl border fade-in transition-opacity ${
+      doneToday
+        ? 'bg-gray-900/80 border-gray-800/30 opacity-50'
+        : isDaily
+          ? 'bg-blue-950/20 border-blue-900/30'
         : 'bg-gray-900/50 border-gray-800/50'
     }`}>
       <div className="flex items-start justify-between gap-2">
@@ -275,7 +280,10 @@ function QuestItem({ quest, onComplete, onFail, onDelete, isDaily }: {
           </div>
         </div>
 
-        {quest.status === 'active' && (
+        {doneToday && (
+          <span className="text-green-600 text-lg shrink-0">✓</span>
+        )}
+        {!doneToday && quest.status === 'active' && (
           <div className="flex gap-1 shrink-0">
             <button
               onClick={() => onComplete(quest.id)}

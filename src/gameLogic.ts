@@ -243,29 +243,23 @@ function applyClassMultiplier(state: CharacterState, stat: StatKey, amount: numb
 
 export function completeQuest(state: CharacterState, questId: string): CharacterState {
   const quest = state.quests.find(q => q.id === questId);
-  if (!quest || quest.status !== 'active') return state;
+  if (!quest) return state;
+  if (quest.status !== 'active') return state;
+
+  const today = todayString();
+  if (quest.recurring && quest.lastCompletedDate === today) return state;
 
   const baseStatReward = STAT_REWARDS[quest.difficulty];
   const actualStatReward = applyClassMultiplier(state, quest.stat, baseStatReward);
   const xpReward = XP_REWARDS[quest.difficulty];
 
-  let updatedQuests = state.quests.map(q =>
-    q.id === questId
-      ? { ...q, status: 'completed' as const, completedAt: Date.now() }
-      : q
-  );
-
-  if (quest.recurring) {
-    const resetQuest: Quest = {
-      ...quest,
-      id: crypto.randomUUID(),
-      status: 'active',
-      createdAt: Date.now(),
-      completedAt: undefined,
-      lastResetAt: Date.now(),
-    };
-    updatedQuests = [...updatedQuests, resetQuest];
-  }
+  const updatedQuests = state.quests.map(q => {
+    if (q.id !== questId) return q;
+    if (q.recurring) {
+      return { ...q, lastCompletedDate: today };
+    }
+    return { ...q, status: 'completed' as const, completedAt: Date.now(), lastCompletedDate: today };
+  });
 
   let updated: CharacterState = {
     ...state,
@@ -281,7 +275,7 @@ export function completeQuest(state: CharacterState, questId: string): Character
   updated = updateStreak(updated);
   updated = addLog(updated, {
     type: 'quest',
-    message: `퀘스트 완료: "${quest.title}" +${xpReward}XP, ${STAT_LABELS[quest.stat]} +${actualStatReward}`,
+    message: `${quest.recurring ? '루틴' : '퀘스트'} 완료: "${quest.title}" +${xpReward}XP, ${STAT_LABELS[quest.stat]} +${actualStatReward}`,
     value: xpReward,
   });
   updated = checkAchievements(updated);
@@ -323,7 +317,7 @@ export function failQuest(state: CharacterState, questId: string): CharacterStat
   return updated;
 }
 
-export function addQuest(state: CharacterState, quest: Omit<Quest, 'id' | 'status' | 'createdAt' | 'xpReward' | 'statReward'>): CharacterState {
+export function addQuest(state: CharacterState, quest: Omit<Quest, 'id' | 'status' | 'createdAt' | 'xpReward' | 'statReward' | 'lastCompletedDate'>): CharacterState {
   const newQuest: Quest = {
     ...quest,
     id: crypto.randomUUID(),
@@ -331,6 +325,7 @@ export function addQuest(state: CharacterState, quest: Omit<Quest, 'id' | 'statu
     createdAt: Date.now(),
     xpReward: XP_REWARDS[quest.difficulty],
     statReward: STAT_REWARDS[quest.difficulty],
+    lastCompletedDate: null,
   };
 
   let updated = { ...state, quests: [newQuest, ...state.quests] };
@@ -492,6 +487,59 @@ export const CATEGORY_EMOJIS: Record<string, string> = {
   habit: '🔄',
   other: '📌',
 };
+
+export function dailyReset(state: CharacterState, lastOpenedDate: string | null): CharacterState {
+  const today = todayString();
+  if (lastOpenedDate === today) return state;
+
+  const recurringActive = state.quests.filter(
+    q => q.recurring !== null && q.status === 'active' && q.lastCompletedDate !== lastOpenedDate
+  );
+
+  let updated = state;
+
+  for (const q of recurringActive) {
+    if (lastOpenedDate !== null) {
+      const penaltyAmount = q.difficulty === 'epic' ? 5 : q.difficulty === 'hard' ? 4 : q.difficulty === 'normal' ? 3 : 2;
+      updated = {
+        ...updated,
+        debuffs: [
+          ...updated.debuffs,
+          {
+            id: crypto.randomUUID(),
+            title: `루틴 미완료: ${q.title}`,
+            description: '어제 루틴을 지키지 않았습니다.',
+            statPenalty: q.stat,
+            penaltyAmount,
+            createdAt: Date.now(),
+            resolved: false,
+          },
+        ],
+        stats: {
+          ...updated.stats,
+          [q.stat]: Math.max(1, updated.stats[q.stat] - penaltyAmount),
+        },
+        streak: 0,
+      };
+      updated = addLog(updated, {
+        type: 'debuff',
+        message: `루틴 미완료 패널티: "${q.title}" ${STAT_LABELS[q.stat]} -${penaltyAmount}`,
+        value: -penaltyAmount,
+      });
+    }
+  }
+
+  updated = {
+    ...updated,
+    quests: updated.quests.map(q =>
+      q.recurring !== null && q.status === 'active'
+        ? { ...q, lastCompletedDate: null }
+        : q
+    ),
+  };
+
+  return updated;
+}
 
 export { updateStreak };
 export type { XpHistoryEntry };
