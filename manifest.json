@@ -1,7 +1,7 @@
 {
   "name": "Life is Game",
   "short_name": "LifeRPG",
-  "version": "2.0.0",
+  "version": "2.2.0",
   "description": "현실을 RPG로. 자신을 레벨업하라. 포모도로, 아이템, 리포트 추가!",
   "start_url": "/life-is-game/",
   "scope": "/life-is-game/",
