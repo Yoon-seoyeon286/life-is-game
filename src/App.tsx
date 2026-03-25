@@ -291,7 +291,10 @@ export default function App() {
                 </div>
               ))}
             </div>
-            <ActivityLogPanel logs={state.logs} />
+            <ActivityLogPanel
+              logs={state.logs}
+              onClear={() => setState(s => ({ ...s, logs: [] }))}
+            />
           </div>
 
           <div className="lg:col-span-2 space-y-5">

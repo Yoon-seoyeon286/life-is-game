@@ -158,7 +158,7 @@ export function addLog(state: CharacterState, log: Omit<ActivityLog, 'id' | 'tim
   };
   return {
     ...state,
-    logs: [newLog, ...state.logs].slice(0, 100),
+    logs: [newLog, ...state.logs].slice(0, 50),
   };
 }
 
