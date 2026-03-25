@@ -293,7 +293,7 @@ export default function App() {
             </div>
             <ActivityLogPanel
               logs={state.logs}
-              onClear={() => setState(s => ({ ...s, logs: [] }))}
+              onClear={() => setState(s => s ? { ...s, logs: [] } : s)}
             />
           </div>
 
